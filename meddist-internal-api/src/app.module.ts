@@ -4,6 +4,11 @@ import { AppService } from './app.service';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { User } from './users/user.entity';
+import { Address } from './addresses/address.entity';
+import { UsersModule } from './users/users.module';
+import { AuthModule } from './auth/auth.module';
+import { ProductsModule } from './products/products.module';
 
 @Module({
   imports: [
@@ -27,7 +32,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
           username: configService.get<string>('DATABASE_USER'),
           password: configService.get<string>('DATABASE_PASSWORD'),
           database: configService.get<string>('DATABASE_NAME'),
-          entities: [],
+          entities: [User, Address],
           synchronize: true, // Note: set to false in production
           ssl: {
             rejectUnauthorized: false,
@@ -43,6 +48,9 @@ import { ThrottlerModule } from '@nestjs/throttler';
       },
       inject: [ConfigService],
     }),
+    ProductsModule,
+    UsersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
