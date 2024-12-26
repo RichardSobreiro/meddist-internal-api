@@ -152,8 +152,22 @@ export class ProductsService {
     }
   }
 
-  async findAll(): Promise<Product[]> {
-    return this.productRepository.find({ relations: ['images'] });
+  async findAll({
+    page = 1,
+    limit = 10,
+  }: {
+    page: number;
+    limit: number;
+  }): Promise<{ products: Product[]; totalPages: number }> {
+    const [products, total] = await this.productRepository.findAndCount({
+      relations: ['images'],
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return { products, totalPages };
   }
 
   async findOne(id: string): Promise<Product> {

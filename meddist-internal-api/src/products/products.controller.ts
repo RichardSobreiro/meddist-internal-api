@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   UploadedFiles,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductsService } from './products.service';
@@ -35,8 +36,8 @@ export class ProductsController {
 
   @Get()
   @Roles('admin', 'product_viewer')
-  async findAll() {
-    return this.productsService.findAll();
+  async findAll(@Query('page') page = 1, @Query('limit') limit = 10) {
+    return this.productsService.findAll({ page: +page, limit: +limit });
   }
 
   @Get(':id')
