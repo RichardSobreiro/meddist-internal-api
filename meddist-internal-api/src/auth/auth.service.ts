@@ -24,6 +24,7 @@ export class AuthService {
       email: user.email,
       sub: user.id,
       username: user.username,
+      roles: user.roles,
     };
     const access_token = this.jwtService.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET || 'access-secret-key',

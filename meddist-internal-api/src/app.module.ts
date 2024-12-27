@@ -9,6 +9,9 @@ import { Address } from './addresses/address.entity';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
+import { Product } from './products/entities/product.entity';
+import { ProductImage } from './products/entities/product-image.entity';
+import { Category } from './categories/entities/category.entity';
 
 @Module({
   imports: [
@@ -32,7 +35,7 @@ import { ProductsModule } from './products/products.module';
           username: configService.get<string>('DATABASE_USER'),
           password: configService.get<string>('DATABASE_PASSWORD'),
           database: configService.get<string>('DATABASE_NAME'),
-          entities: [User, Address],
+          entities: [User, Address, Product, ProductImage, Category],
           synchronize: true, // Note: set to false in production
           ssl: {
             rejectUnauthorized: false,
