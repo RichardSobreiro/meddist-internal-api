@@ -7,6 +7,7 @@ import {
   Param,
   Body,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -28,8 +29,11 @@ export class CategoriesController {
 
   @Get()
   @Roles('admin', 'category_viewer')
-  async findAll() {
-    return this.categoriesService.findAll();
+  async findAll(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+  ) {
+    return this.categoriesService.findAllWithPagination(page, limit);
   }
 
   @Get(':id')

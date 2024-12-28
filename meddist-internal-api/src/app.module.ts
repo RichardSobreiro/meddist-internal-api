@@ -12,6 +12,7 @@ import { ProductsModule } from './products/products.module';
 import { Product } from './products/entities/product.entity';
 import { ProductImage } from './products/entities/product-image.entity';
 import { Category } from './categories/entities/category.entity';
+import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { Category } from './categories/entities/category.entity';
       },
       inject: [ConfigService],
     }),
+    CategoriesModule,
     ProductsModule,
     UsersModule,
     AuthModule,

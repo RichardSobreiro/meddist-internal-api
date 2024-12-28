@@ -42,6 +42,25 @@ export class CategoriesService {
     });
   }
 
+  async findAllWithPagination(
+    page: number,
+    limit: number,
+  ): Promise<{
+    categories: Category[];
+    totalPages: number;
+    currentPage: number;
+  }> {
+    const [categories, total] = await this.categoryRepository.findAndCount({
+      relations: ['parent', 'children', 'products'],
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return { categories, totalPages, currentPage: page };
+  }
+
   async findOne(id: string): Promise<Category> {
     const category = await this.categoryRepository.findOne({
       where: { id },
