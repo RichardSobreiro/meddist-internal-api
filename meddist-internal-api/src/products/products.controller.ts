@@ -41,8 +41,18 @@ export class ProductsController {
 
   @Get()
   @Roles('admin', 'product_viewer')
-  async findAll(@Query('page') page = 1, @Query('limit') limit = 10) {
-    return this.productsService.findAll({ page: +page, limit: +limit });
+  async findAll(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.productsService.findAll({
+      page: +page,
+      limit: +limit,
+      search,
+      category,
+    });
   }
 
   @Get(':id')

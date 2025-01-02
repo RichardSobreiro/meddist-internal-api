@@ -115,7 +115,6 @@ export class ProductsService {
         where: { product: { id } },
       });
 
-      // Handle existing images
       const imagesMetadataArray = Array.isArray(imagesMetadata)
         ? imagesMetadata
         : [imagesMetadata];
@@ -132,7 +131,6 @@ export class ProductsService {
         await queryRunner.manager.remove(image);
       }
 
-      // Handle uploaded files
       for (let i = 0; i < uploadedFiles.length; i++) {
         const file = uploadedFiles[i];
         const metadata = imagesMetadataArray.find(
@@ -199,19 +197,49 @@ export class ProductsService {
     }
   }
 
+  private async deleteImageFromS3(fileKey: string) {
+    const params = { Bucket: process.env.AWS_S3_BUCKET_NAME, Key: fileKey };
+    try {
+      await this.s3.deleteObject(params).promise();
+    } catch (error) {
+      console.error('Error deleting image from S3:', error);
+      throw new InternalServerErrorException('Failed to delete image');
+    }
+  }
+
   async findAll({
     page = 1,
     limit = 10,
+    search,
+    category,
   }: {
     page: number;
     limit: number;
+    search?: string;
+    category?: string;
   }): Promise<{ products: Product[]; totalPages: number }> {
-    const [products, total] = await this.productRepository.findAndCount({
-      relations: ['images'],
-      skip: (page - 1) * limit,
-      take: limit,
-    });
+    const queryBuilder = this.productRepository.createQueryBuilder('product');
 
+    queryBuilder
+      .leftJoinAndSelect('product.images', 'images')
+      .leftJoinAndSelect('product.categories', 'categories')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (search) {
+      queryBuilder.andWhere(
+        '(product.name ILIKE :search OR product.description ILIKE :search OR product.brand ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (category) {
+      queryBuilder.andWhere('categories.id = :categoryId', {
+        categoryId: category,
+      });
+    }
+
+    const [products, total] = await queryBuilder.getManyAndCount();
     const totalPages = Math.ceil(total / limit);
 
     return { products, totalPages };
@@ -224,16 +252,6 @@ export class ProductsService {
     });
     if (!product) throw new NotFoundException('Product not found');
     return product;
-  }
-
-  private async deleteImageFromS3(fileKey: string) {
-    const params = { Bucket: process.env.AWS_S3_BUCKET_NAME, Key: fileKey };
-    try {
-      await this.s3.deleteObject(params).promise();
-    } catch (error) {
-      console.error('Error deleting image from S3:', error);
-      throw new InternalServerErrorException('Failed to delete image');
-    }
   }
 
   async remove(id: string): Promise<void> {
