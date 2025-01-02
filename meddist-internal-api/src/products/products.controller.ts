@@ -29,9 +29,14 @@ export class ProductsController {
   @UseInterceptors(FilesInterceptor('images'))
   async create(
     @Body() createProductDto: CreateProductDto,
+    @Body('imagesMetadata') imagesMetadata: string,
     @UploadedFiles() images: Express.Multer.File[],
   ) {
-    return this.productsService.create(createProductDto, images);
+    const parsedMetadata = JSON.parse(imagesMetadata);
+    return this.productsService.create(
+      { ...createProductDto, imagesMetadata: parsedMetadata },
+      images,
+    );
   }
 
   @Get()
@@ -52,9 +57,15 @@ export class ProductsController {
   async update(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
+    @Body('imagesMetadata') imagesMetadata: string,
     @UploadedFiles() images: Express.Multer.File[],
   ) {
-    return this.productsService.update(id, updateProductDto, images);
+    const parsedMetadata = JSON.parse(imagesMetadata);
+    return this.productsService.update(
+      id,
+      { ...updateProductDto, imagesMetadata: parsedMetadata },
+      images,
+    );
   }
 
   @Delete(':id')

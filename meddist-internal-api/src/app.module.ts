@@ -13,9 +13,14 @@ import { Product } from './products/entities/product.entity';
 import { ProductImage } from './products/entities/product-image.entity';
 import { Category } from './categories/entities/category.entity';
 import { CategoriesModule } from './categories/categories.module';
+import { MulterModule } from '@nestjs/platform-express';
+import * as multer from 'multer';
 
 @Module({
   imports: [
+    MulterModule.register({
+      storage: multer.memoryStorage(), // Ensures files are stored in memory for easy upload
+    }),
     ConfigModule.forRoot({
       isGlobal: true, // Makes the configuration globally available
       envFilePath: '../.env', // Default is .env, but you can specify the path

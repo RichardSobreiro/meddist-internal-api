@@ -4,8 +4,10 @@ import {
   IsArray,
   ValidateNested,
   IsNumber,
+  IsNotEmpty,
+  Min,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 class ProductImageDto {
   @IsString()
@@ -20,6 +22,10 @@ class ProductImageDto {
 
   @IsOptional()
   isListImage?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  position?: number;
 }
 
 export class CreateProductDto {
@@ -34,15 +40,15 @@ export class CreateProductDto {
   brand: string;
 
   @IsNumber()
+  @IsNotEmpty({ message: 'O preço é obrigatório' })
+  @Transform(({ value }) => parseFloat(value.replace(',', '.')))
+  @Min(0, { message: 'O preço deve ser maior ou igual a 0' })
   price: number;
-
-  @IsNumber()
-  quantity: number;
 
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProductImageDto)
-  images: ProductImageDto[];
+  imagesMetadata: ProductImageDto[];
 
   @IsArray()
   @ValidateNested({ each: true })

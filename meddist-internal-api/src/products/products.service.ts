@@ -4,7 +4,7 @@ import {
   InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Product } from './entities/product.entity';
 import { ProductImage } from './entities/product-image.entity';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -16,6 +16,7 @@ export class ProductsService {
   private readonly s3: AWS.S3;
 
   constructor(
+    private readonly dataSource: DataSource,
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     @InjectRepository(ProductImage)
@@ -32,37 +33,59 @@ export class ProductsService {
     createProductDto: CreateProductDto,
     images: Express.Multer.File[],
   ): Promise<Product> {
-    const { categories, images: dtoImages, ...productData } = createProductDto;
+    const queryRunner = this.dataSource.createQueryRunner();
 
-    const categoryEntities = categories.map((categoryId) => ({
-      id: categoryId,
-    }));
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const product = this.productRepository.create({
-      ...productData,
-      categories: categoryEntities,
-    });
+    try {
+      const { categories, imagesMetadata, ...productData } = createProductDto;
 
-    const savedProduct = await this.productRepository.save(product);
+      const categoryArray = Array.isArray(categories)
+        ? categories
+        : [categories];
+      const categoryEntities = categoryArray.map((categoryId) => ({
+        id: categoryId,
+      }));
 
-    const savedImages = [];
-    for (const image of images) {
-      const uploadedImage = await this.uploadImageToS3(image, savedProduct.id);
-      const productImage = this.productImageRepository.create({
-        url: uploadedImage.url,
-        isPrimary: !!dtoImages.find(
-          (img) => img.url === image.originalname && img.isPrimary,
-        ),
-        isListImage: !!dtoImages.find(
-          (img) => img.url === image.originalname && img.isListImage,
-        ),
-        product: savedProduct,
+      const product = this.productRepository.create({
+        ...productData,
+        categories: categoryEntities,
       });
-      savedImages.push(await this.productImageRepository.save(productImage));
-    }
+      const savedProduct = await queryRunner.manager.save(product);
 
-    savedProduct.images = savedImages;
-    return savedProduct;
+      const savedImages = [];
+
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        const metadata = Array.isArray(imagesMetadata)
+          ? imagesMetadata.find((meta) => meta.position === i)
+          : imagesMetadata;
+
+        const uploadedImage = await this.uploadImageToS3(file, savedProduct.id);
+
+        const productImage = this.productImageRepository.create({
+          url: `${process.env.AWS_CLOUD_FRONT_URL}/${uploadedImage.fileName}`,
+          isPrimary: metadata?.isPrimary || false,
+          isListImage: metadata?.isListImage || false,
+          product: savedProduct,
+        });
+
+        const savedImage = await queryRunner.manager.save(productImage);
+        savedImages.push(savedImage);
+      }
+
+      savedProduct.images = savedImages;
+
+      await queryRunner.commitTransaction();
+      return savedProduct;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error('Transaction failed:', error);
+      throw new InternalServerErrorException('Failed to create product');
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async update(
@@ -70,82 +93,106 @@ export class ProductsService {
     updateProductDto: UpdateProductDto,
     uploadedFiles: Express.Multer.File[],
   ): Promise<Product> {
-    const product = await this.findOne(id);
+    const queryRunner = this.dataSource.createQueryRunner();
 
-    const { images: incomingImages, ...productData } = updateProductDto;
-    Object.assign(product, productData);
-    const updatedProduct = await this.productRepository.save(product);
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (incomingImages || uploadedFiles) {
-      const existingImages = await this.productImageRepository.find({
+    try {
+      const product = await queryRunner.manager.findOne(Product, {
+        where: { id },
+        relations: ['images'],
+      });
+      if (!product) {
+        throw new NotFoundException('Product not found');
+      }
+
+      const { imagesMetadata, ...productData } = updateProductDto;
+      Object.assign(product, productData);
+      const updatedProduct = await queryRunner.manager.save(product);
+
+      const existingImages = await queryRunner.manager.find(ProductImage, {
         where: { product: { id } },
       });
 
+      // Handle existing images
+      const imagesMetadataArray = Array.isArray(imagesMetadata)
+        ? imagesMetadata
+        : [imagesMetadata];
       const incomingImageIds = new Set(
-        incomingImages?.map((img) => img.id) || [],
+        imagesMetadataArray.map((meta) => meta.id).filter(Boolean),
       );
-
       const imagesToDelete = existingImages.filter(
         (img) => !incomingImageIds.has(img.id),
       );
 
       for (const image of imagesToDelete) {
-        const fileKey = image.url.split('.com/')[1];
+        const fileKey = image.url.split('.net/')[1];
         await this.deleteImageFromS3(fileKey);
-        await this.productImageRepository.remove(image);
+        await queryRunner.manager.remove(image);
       }
 
-      for (const file of uploadedFiles) {
+      // Handle uploaded files
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const file = uploadedFiles[i];
+        const metadata = imagesMetadataArray.find(
+          (meta) => meta.position === i,
+        );
+
         const uploadedImage = await this.uploadImageToS3(
           file,
           updatedProduct.id,
         );
 
-        const imageDto = incomingImages?.find(
-          (img) => img.url === uploadedImage.url,
-        );
-
         const productImage = this.productImageRepository.create({
-          url: uploadedImage.url,
-          isPrimary: imageDto?.isPrimary || false,
-          isListImage: imageDto?.isListImage || false,
+          url: `${process.env.AWS_CLOUD_FRONT_URL}/${uploadedImage.fileName}`,
+          isPrimary: metadata?.isPrimary || false,
+          isListImage: metadata?.isListImage || false,
           product: updatedProduct,
         });
-        await this.productImageRepository.save(productImage);
+
+        await queryRunner.manager.save(productImage);
       }
 
-      if (incomingImages) {
-        for (const imageDto of incomingImages) {
+      // Update metadata for existing images
+      for (const metadata of imagesMetadataArray) {
+        if (metadata.id) {
           const existingImage = existingImages.find(
-            (img) => img.id === imageDto.id,
+            (img) => img.id === metadata.id,
           );
           if (existingImage) {
             Object.assign(existingImage, {
-              isPrimary: imageDto.isPrimary,
-              isListImage: imageDto.isListImage,
+              isPrimary: metadata.isPrimary,
+              isListImage: metadata.isListImage,
             });
-            await this.productImageRepository.save(existingImage);
+            await queryRunner.manager.save(existingImage);
           }
         }
       }
-    }
 
-    return updatedProduct;
+      await queryRunner.commitTransaction();
+      return updatedProduct;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error('Transaction failed:', error);
+      throw new InternalServerErrorException('Failed to update product');
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   private async uploadImageToS3(file: Express.Multer.File, productId: string) {
-    const fileName = `${productId}`;
+    const fileName = `${productId}/${Date.now()}_${file.originalname}`;
     const params = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
       Key: fileName,
       Body: file.buffer,
-      ACL: 'public-read',
       ContentType: file.mimetype,
     };
 
     try {
       const uploadResult = await this.s3.upload(params).promise();
-      return { url: uploadResult.Location };
+      return { url: uploadResult.Location, fileName };
     } catch (error) {
       console.error('Error uploading image:', error);
       throw new InternalServerErrorException('Failed to upload image');
@@ -173,7 +220,7 @@ export class ProductsService {
   async findOne(id: string): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: ['images'],
+      relations: ['images', 'categories'],
     });
     if (!product) throw new NotFoundException('Product not found');
     return product;
@@ -194,7 +241,7 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Product not found');
 
     for (const image of product.images) {
-      const fileKey = image.url.split('.com/')[1];
+      const fileKey = image.url.split('.net/')[1];
       await this.deleteImageFromS3(fileKey);
     }
 
