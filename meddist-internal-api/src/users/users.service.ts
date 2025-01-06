@@ -10,7 +10,7 @@ import { MoreThan, Repository } from 'typeorm';
 import { User } from './user.entity';
 import * as bcrypt from 'bcryptjs';
 import { CreateUserDto } from './dto/create-user.dto';
-import { Address } from '@/addresses/address.entity';
+import { Address } from '@/addresses/entities/address.entity';
 import { JwtService } from '@nestjs/jwt';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';

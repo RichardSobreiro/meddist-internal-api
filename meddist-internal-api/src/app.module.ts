@@ -5,7 +5,7 @@ import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { User } from './users/user.entity';
-import { Address } from './addresses/address.entity';
+import { Address } from './addresses/entities/address.entity';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
@@ -15,6 +15,13 @@ import { Category } from './categories/entities/category.entity';
 import { CategoriesModule } from './categories/categories.module';
 import { MulterModule } from '@nestjs/platform-express';
 import * as multer from 'multer';
+import { LocationsModule } from './locations/locations.module';
+import { Location } from './locations/entities/location.entity';
+import { InventoryModule } from './inventory/inventory.module';
+import { Channel } from './channels/entities/channel.entity';
+import { InventoryLog } from './inventory/entities/invetory-log.entity';
+import { ProductInventory } from './inventory/entities/product-invetory.entity';
+import { ChannelModule } from './channels/channel.module';
 
 @Module({
   imports: [
@@ -41,7 +48,17 @@ import * as multer from 'multer';
           username: configService.get<string>('DATABASE_USER'),
           password: configService.get<string>('DATABASE_PASSWORD'),
           database: configService.get<string>('DATABASE_NAME'),
-          entities: [User, Address, Product, ProductImage, Category],
+          entities: [
+            User,
+            Address,
+            Product,
+            ProductImage,
+            Category,
+            Location,
+            Channel,
+            InventoryLog,
+            ProductInventory,
+          ],
           synchronize: true, // Note: set to false in production
           ssl: {
             rejectUnauthorized: false,
@@ -57,6 +74,9 @@ import * as multer from 'multer';
       },
       inject: [ConfigService],
     }),
+    ChannelModule,
+    InventoryModule,
+    LocationsModule,
     CategoriesModule,
     ProductsModule,
     UsersModule,

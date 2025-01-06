@@ -7,7 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Address } from '../addresses/address.entity';
+import { Address } from '../addresses/entities/address.entity';
 
 @Entity()
 export class User {
