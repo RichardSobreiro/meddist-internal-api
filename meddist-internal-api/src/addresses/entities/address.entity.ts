@@ -1,7 +1,6 @@
 // src/addresses/address.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
 import { User } from '../../users/user.entity';
-import { Location } from '../../locations/entities/location.entity';
 
 @Entity()
 export class Address {
@@ -31,7 +30,4 @@ export class Address {
 
   @ManyToOne(() => User, (user) => user.addresses, { nullable: true })
   user?: User;
-
-  @ManyToOne(() => Location, (location) => location.address, { nullable: true })
-  location?: Location;
 }
